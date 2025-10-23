@@ -79,47 +79,65 @@ In this experiment:
 
 ### Flip-Flop Design (`flipflop.sv`)
 ```systemverilog
-module flipflop (
-    input  logic D,       // Data input
-    input  logic CLK,     // Clock
-    output logic Q        // Flip-Flop output
-);
+module dff(D, clk, Q);
+  input  logic D;
+  input  logic clk;
+  output logic Q;
 
-    // Implement Flip-Flop behavior
-    // Include D flip-flop logic
+  always_ff @(posedge clk) 
+    Q <= D;
 endmodule
+
+class RandDelay;
+  rand int rand_delay;
+  constraint c_range { rand_delay inside {[-3:3]}; }
+endclass
 ```
 ### Testbench (`flipflop_tb.sv`)
 ```systemverilog
-module flipflop_tb;
+module tb_dff;
+  logic D, clk, Q;
+  RandDelay rg;
+  parameter t_setup = 2;
+  parameter t_hold  = 1;
 
-    // Declare signals
-    logic D, CLK;
-    logic Q;
+  dff uut(.D(D), .clk(clk), .Q(Q));
 
-    // Instantiate Flip-Flop
-    flipflop uut (
-        .D(D),
-        .CLK(CLK),
-        .Q(Q)
-    );
+  initial begin
+    $dumpfile("wave.vcd");
+    $dumpvars(0, tb_dff);
+  end
 
-    // Random input generation and clock
-    initial begin
-        CLK = 0;
-        forever #5 CLK = ~CLK; // Clock generation
+  initial begin
+    clk = 0;
+  end
+
+  always #5 clk = ~clk;
+
+  initial begin
+    D = 0;
+    rg = new();
+    repeat (10) begin
+      if (!rg.randomize()) begin
+        $error("Randomization failed!");
+      end
+
+      @(posedge clk);
+      #(rg.rand_delay) D = $urandom() % 2;
+
+      if (rg.rand_delay < -t_setup)
+        $display("[%0t] SETUP VIOLATION: Data changed %0d ns before clk edge", 
+                  $time, rg.rand_delay);
+
+      else if (rg.rand_delay >= 0 && rg.rand_delay < t_hold)
+        $display("[%0t] HOLD VIOLATION: Data changed %0d ns after clk edge", 
+                  $time, rg.rand_delay);
+
+      else
+        $display("[%0t] OK: Data stable within setup/hold window", $time);
     end
-
-    initial begin
-        // Apply random data to D
-        // Example:
-        // repeat(20) begin
-        //   D = $urandom_range(0,1);
-        //   #10;
-        // end
-        $stop; // End simulation
-    end
-
+    $finish;
+  end
 endmodule
 ```
 ---
@@ -131,7 +149,7 @@ Waveforms will show Flip-Flop input, clock, and output.
 
 Verify setup and hold constraints for all random input patterns.
 
-(Insert waveform screenshot here after running simulation in ModelSim)
+<img width="1920" height="1080" alt="Screenshot (46)" src="https://github.com/user-attachments/assets/fdef4f21-e3e6-4bb9-b1f7-44ee97cd6423" />
 
 ---
 
